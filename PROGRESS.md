@@ -63,4 +63,9 @@
 - [x] **بناء واختبار الحزم التنفيذية النهائية المحدثة:**
   - [dist/Shalbny.exe](file:///c:/Users/khale/OneDrive/Desktop/shalbny/dist/Shalbny.exe) (انخفض الحجم من ~32MB إلى **11.14 MB** فقط - جاهز للتشغيل المباشر).
   - [dist/Shalbny_Setup.exe](file:///c:/Users/khale/OneDrive/Desktop/shalbny/dist/Shalbny_Setup.exe) (انخفض الحجم من ~64MB إلى **22.12 MB** فقط - معالج تثبيت رسومي متكامل مع أيقونات سطح المكتب وقائمة ابدأ والإقلاع التلقائي).
+- [x] **النشر والتوثيق الرسمي على GitHub (`ben10943/shalbny`):**
+  - توثيق شامل في [README.md](file:///c:/Users/khale/OneDrive/Desktop/shalbny/README.md) يوضح المميزات، جدول المكتبات والتقنيات المستخدمة، وطرق التحميل والتثبيت للمستخدمين والمطورين.
+  - إضافة ملفات [.gitignore](file:///c:/Users/khale/OneDrive/Desktop/shalbny/.gitignore) و [LICENSE](file:///c:/Users/khale/OneDrive/Desktop/shalbny/LICENSE) (MIT).
+  - رفع المستودع على الرابط الرسمي: [https://github.com/ben10943/shalbny](https://github.com/ben10943/shalbny) مع نشر إصدار **GitHub Release (`v1.1.0`)** مرفقاً به `Shalbny_Setup.exe` و `Shalbny.exe`.
+
 
