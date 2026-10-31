@@ -7,7 +7,7 @@
 **مبدّل لغة الكتابة الذكي والفوري لنظام ويندوز (عربي ⟷ إنجليزي)**  
 *Smart & Instant Keyboard Layout Text Switcher for Windows*
 
-[![Version](https://img.shields.io/badge/Version-v1.1.0_Stable-2563EB?style=for-the-badge)](https://github.com/ben10943/shalbny/releases)
+[![Version](https://img.shields.io/badge/Version-v1.2.0_Stable-2563EB?style=for-the-badge)](https://github.com/ben10943/shalbny/releases)
 [![Platform](https://img.shields.io/badge/Platform-Windows_10%20%7C%2011-0078D6?style=for-the-badge&logo=windows)](https://github.com/ben10943/shalbny)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![Size](https://img.shields.io/badge/Standalone_Size-11.1_MB-10B981?style=for-the-badge)](https://github.com/ben10943/shalbny/releases)
@@ -41,7 +41,7 @@
   - **مسجل اختصارات تفاعلي (Custom Hotkey Recorder):** لتخصيص اختصارك المفضل بضغطة واحدة.
 - 🔊 **استوديو صوتي مدمج (Modern PCM Audio Engine):**
   - توليد موجات صوتية نقية وناعمة (`Soft Pop`, `Windows Chime`, `Gentle Harmony`) تعمل بشكل غير متزامن مع مفتاح كتم كامل (Master Mute) وزر معاينة حية.
-- 📊 **إحصائيات ودليل استخدام تفاعلي:** عداد حي لتتبع عدد النصوص التي تم إنقاذها، مع إمكانية استعادة ضبط المصنع بنقرة واحدة.
+- 📊 **إحصائيات وسجل إنقاذ ودليل تفاعلي:** عداد حي لتتبع عدد النصوص المحفوظة، بالإضافة إلى سجل يوضح آخر النصوص التي تم تغييرها (History) مع إمكانية استعادة ضبط المصنع بنقرة واحدة.
 - 🚀 **حجم رشيق وبدون أي متطلبات خارجية (Zero Dependencies):**
   - ملف تنفيذي مستقل `Shalbny.exe` بحجم **11.1 MB فقط** يعمل **100% Offline** ويستهلك أقل من **8 MB RAM** في الخلفية بجوار الساعة (System Tray).
 
@@ -62,7 +62,7 @@
 | **Win32 API (`ctypes` / `winreg`)** | `Built-in` | محاكاة ضغطات المفاتيح الفورية (`user32.keybd_event`)، تبديل لغة النظام (`WM_INPUTLANGCHANGEREQUEST`)، وإدارة بدء التشغيل التلقائي في سجل الويندوز (`Registry`) |
 | **PCM Audio (`winsound` / `wave`)** | `Built-in` | توليد وتشغيل المؤثرات الصوتية النقية في الذاكرة (`In-Memory WAV Synthesis`) بدون ملفات صوتية خارجية |
 | **[PyInstaller](https://pyinstaller.org/)** | `>= 6.0` | حزم وضغط التطبيق ومعالج التثبيت في ملفات تنفيذية مستقلة (`.exe`) مع تحسين البايت كود (`optimize=2`) |
-| **[Pytest](https://pytest.org/)** | `>= 8.0.0` | إطار الاختبارات الآلية الشاملة (23 اختباراً للتحويل، اللغات، الإعدادات، والصوت) |
+| **[Pytest](https://pytest.org/)** | `>= 8.0.0` | إطار الاختبارات الآلية الشاملة (54 اختباراً للمحول، التحديثات، السجل، اللغات، الإعدادات، والصوت) |
 
 ---
 
@@ -111,7 +111,7 @@ pip install -r requirements.txt
 
 ## 🏗️ بناء النسخ التنفيذية والاختبار (Building & Testing)
 
-- **تشغيل الاختبارات الآلية الشاملة (23 اختباراً):**
+- **تشغيل الاختبارات الآلية الشاملة (54 اختباراً):**
   ```bash
   python -m pytest -v
   ```

@@ -67,5 +67,75 @@
   - توثيق شامل في [README.md](file:///c:/Users/khale/OneDrive/Desktop/shalbny/README.md) يوضح المميزات، جدول المكتبات والتقنيات المستخدمة، وطرق التحميل والتثبيت للمستخدمين والمطورين.
   - إضافة ملفات [.gitignore](file:///c:/Users/khale/OneDrive/Desktop/shalbny/.gitignore) و [LICENSE](file:///c:/Users/khale/OneDrive/Desktop/shalbny/LICENSE) (MIT).
   - رفع المستودع على الرابط الرسمي: [https://github.com/ben10943/shalbny](https://github.com/ben10943/shalbny) مع نشر إصدار **GitHub Release (`v1.1.0`)** مرفقاً به `Shalbny_Setup.exe` و `Shalbny.exe`.
+- [x] **حل مشكلة تعطل الاختصار بعد سكون اللابتوب أو الخمول الطويل وتعارض النسخ المتعددة (Sleep & Multi-Instance Overhaul):**
+  - **الترقية إلى Win32 Native `RegisterHotKey`:** استبدال خطافات الكيبورد القديمة (`WH_KEYBOARD_LL`) التي كان يسقطها نظام ويندوز صامتاً عند السكون أو قفل الشاشة بسبب مهلة `LowLevelHooksTimeout`.
+  - **قفل النسخة الواحدة الإلزامي (Single-Instance Mutex Protection):** استخدام `kernel32.CreateMutexW` لمنع تشغيل نسخ متعددة في الخلفية تتنازع على الاختصارات وقوائم صينية النظام، مع توجيه أي تشغيل مكرر لإيقاظ نافذة الإعدادات الحالية والخروج فوراً.
+  - **إنعاش الاختصار الدوري التلقائي (Proactive Heartbeat Refresh):** يتم إعادة تسجيل وإنعاش الاختصار كل 30 ثانية أوتوماتيكياً أثناء فترات الخمول الطويلة لضمان بقائه حياً على مدار الساعة.
+  - **مراقب السكون واستعادة الاختصار الفوري (Wall-Clock Watchdog):** يراقب قفزات التوقيت الرتيب (`time.monotonic()`) فور استيقاظ اللابتوب من Sleep أو Modern Standby ويعيد تنشيط الاختصار تلقائياً دون أي تدخل يدوي مع حارس إعادة إحياء الثريد (Thread Guardian).
+  - **مزامنة حالة الإيقاف المؤقت والاستئناف:** عند النقر على "استئناف تشغيل المحرك" يتم إعادة تسجيل الاختصار فوراً وتحديث شارة الحالة في الإعدادات وصينية النظام بالتزامن.
+  - **تحديث النسخة المثبتة على الجهاز تلقائياً:** تحديث الملف التنفيذي الأصلي المثبت في `AppData\Local\Programs\Shalbny\Shalbny.exe` لمنع تشغيل النسخة القديمة غير المحدثة.
+  - **إضافة حزمة اختبارات شاملة للاختصارات:** إنشاء [tests/test_hotkey_service.py](file:///c:/Users/khale/OneDrive/Desktop/shalbny/tests/test_hotkey_service.py) ورفع عدد الاختبارات الناجحة إلى **34/34 اختباراً بنسبة 100%**.
+  - **إعادة بناء الحزم التنفيذية المحدثة بنجاح:** تحديث [dist/Shalbny.exe](file:///c:/Users/khale/OneDrive/Desktop/shalbny/dist/Shalbny.exe) و [dist/Shalbny_Setup.exe](file:///c:/Users/khale/OneDrive/Desktop/shalbny/dist/Shalbny_Setup.exe).
+- [x] **تشغيل وتفعيل وتجربة البرنامج في الخلفية بنجاح (Live Activation & Verification):**
+  - تشغيل البرنامج بنجاح كنسخة نشطة واحدة تحت جلسة المستخدم التفاعلية من المسار المثبت `AppData\Local\Programs\Shalbny\Shalbny.exe`.
+  - التحقق البرمجي التام من التقاط وحجز اختصار `Alt + S` على مستوى نظام ويندوز عبر Win32 API (`ERROR_HOTKEY_ALREADY_REGISTERED` برمز 1409 يؤكد استماع شقلبني للاختصار بنسبة 100%).
+  - التحقق من عمل قفل النسخة الواحدة (`Single-Instance Mutex`) حيث تخرج أي محاولة تشغيل إضافية بكود 0 فوراً دون تكرار أو صراع على الموارد.
+  - تنظيف وحذف كافة الملفات المؤقتة وسكربتات الاختبار بعد إتمام الفحص.
+- [x] **إصلاح خطأ `ModuleNotFoundError: No module named 'urllib'` وحل التعارض في الحزم التنفيذية:**
+  - تشخيص سبب الخطأ: استبعاد `urllib` و `ssl` و `email` ضمن قائمة `EXCLUDED_MODULES` في `Shalbny.spec` لتقليص الحجم أدى لغيابها عند استدعاء `updater.py`.
+  - تأمين الاستيراد الدفاعي في [src/core/updater.py](file:///c:/Users/khale/OneDrive/Desktop/shalbny/src/core/updater.py) بكتلة حماية برمجية تمنع انهيار البرنامج حتى لو غابت مكتبات الشبكة لأي سبب.
+  - تصحيح ملف التجميع [Shalbny.spec](file:///c:/Users/khale/OneDrive/Desktop/shalbny/Shalbny.spec) وتضمين `urllib`, `ssl`, `http`, `email` في `hiddenimports` وإلغاء استبعاد مكتبات التشفير والـ SSL.
+  - إعادة بناء الحزم التنفيذية بنجاح: `dist/Shalbny.exe` (14.2 MB) و `dist/Shalbny_Setup.exe`.
+  - تحديث النسخة المثبتة على الجهاز في `AppData\Local\Programs\Shalbny\Shalbny.exe` وتشغيلها بنجاح واختبار استماع الاختصار وثباتها.
+
+---
+
+## 🗺️ خارطة الطريق القادمة (Roadmap):
+- خطة التطوير الكاملة للنسخ القادمة موثقة في [ROADMAP.md](file:///c:/Users/khale/OneDrive/Desktop/shalbny/ROADMAP.md) وتشمل 5 مراحل: (1) تحديث تلقائي + CI/CD + Winget، (2) لغات جديدة (فرنسي/روسي) عبر معمارية LanguageProfile، (3) قائمة استثناءات التطبيقات + سجل الشقلبات + Undo فوري، (4) وضع فاتح/داكن + تصدير الإعدادات، (5) Microsoft Store وصفحة هبوط رسمية.
+
+- [x] **نظام فحص تحديثات حقيقي متصل بـ GitHub (Real Auto-Updater via GitHub Releases):**
+  - **[src/core/updater.py](file:///c:/Users/khale/OneDrive/Desktop/shalbny/src/core/updater.py):** محرك فحص مستقل يستخدم `urllib` القياسي فقط (بدون أي مكتبة جديدة) ويستعلم من `api.github.com` عن أحدث إصدار.
+  - **مقارنة إصدارات رقمية سليمة** ([src/version.py](file:///c:/Users/khale/OneDrive/Desktop/shalbny/src/version.py)) بحيث تفهم `1.10.0` كأحدث من `1.9.0` (لا مقارنة حرفية خاطئة).
+  - **زر "فحص التحديثات" أصبح وظيفياً بالكامل:** فاصل غير معيق للواجهة (Threaded)، مع نتائج ملونة (متوفر إصدار جديد / محدث / تعذر الاتصال) وزر تحميل مباشر يفتح صفحة الإصدار.
+  - **فحص صامت عند بدء التشغيل:** خيار `check_updates_on_start` يفحص مرة واحدة في الخلفية عند الإقلاع، وإذا وُجد تحديث يظهر إشعاره تلقائياً داخل تبويب المطور، وإذا كانت النافذة مغلقة يُعرض عند فتحها.
+  - **فحص حي ناجح:** تأكد من استكمال الاتصال الفعلي بـ GitHub API وإرجاع حالة "محتوي على أحدث إصدار `v1.1.0`".
+- [x] **CI/CD على GitHub Actions (أتمتة كاملة للبناء والنشر):**
+  - **[.github/workflows/build.yml](file:///c:/Users/khale/OneDrive/Desktop/shalbny/.github/workflows/build.yml):** عند أي Pull Request يتم تنفيذ الاختبارات كاملة على بيئة ويندوز رسمية، وعند أي وسم `v*` يتم بناء `Shalbny.exe` + `Shalbny_Setup.exe` ونشرهما في GitHub Release تلقائياً كخطوة نهائية.
+- [x] **سجل إنقاذ النصوص (Rescue History):**
+  - تخزين آخر 10 عمليات شقلبة ناجحة (النص الأصلي ⟷ المنقلب + الطابع الزمني) في `config.json` مع اقتطاع النصوص الطويلة للحفاظ على خفة الملف.
+  - **بطاقة "سجل آخر النصوص المقلوبة" جديدة في تبويب الإحصائيات** تظهر أحدث 5 عمليات فوراً، مع زر `🧹 مسح السجل`.
+  - تسجيل موفق حصرياً للشقلبات الصحيحة فقط (لا يتم التسجيل عند فشل التحويل أو غياب التحديد).
+- [x] **استقرار اختبارات شاملة برقم قياسي 54/54 اختباراً ناجحاً:**
+  - [tests/test_updater.py](file:///c:/Users/khale/OneDrive/Desktop/shalbny/tests/test_updater.py): مقارنة الإصدارات (بما فيها حالة 1.10 مقابل 1.9)، محاكاة الـ API، حالة الانترنت المقطوع، وعدم التراجع لإصدار أقدم.
+  - [tests/test_history.py](file:///c:/Users/khale/OneDrive/Desktop/shalbny/tests/test_history.py): هيكل السجل، سقف 10 عناصر، الاقتطاع، السؤال على قرص مؤقت معزول دون المساس بإعدادات المستخدم الحقيقية.
+
+- [x] **حل المشكلة الجذرية لتعطل البرنامج واختصارات لوحة المفاتيح العربية بالكامل (Complete Keyboard & Engine Overhaul):**
+  - **تشخيص السبب الجذري الأول (Arabic Layout Hotkey Poisoning):** كان المستخدم عند تسجيل اختصار أثناء تفعيل كيبورد الويندوز العربي يلتقط الحرف كحرف عربي `ctrl+س` ويُحفظ في `config.json`. داخل `HotkeyService`، كان الاستدعاء `ord('س') = 1587` يُقتطع بواسطة Win32 إلى 8 بت (`1587 & 0xFF = 0x33` وهو رقم `'3'`)، مما يسجل `Ctrl + 3` بدلاً من `Ctrl + S` أو `Alt + S`.
+  - **نظام التطهير والتعريب التلقائي (Hotkey Normalization & Sanitization):** إضافة خريطة تطهير شاملة `ARABIC_TO_LATIN_KEY_MAP` ودالة `sanitize_hotkey_string()` في `config.py` و `hotkey_service.py` و `settings_window.py` تحول تلقائياً أي حرف أو رمز عربي لقيمته اللاتينية القياسية وتمنع حفظ أي رمز خارج نطاق Latin ASCII.
+  - **حل تعارض الأزرار الفيزيائية المعلقة (Physical Modifier Collision):** عند الضغط على `Alt + S`، قد يظل إصبع المستخدم ملامساً للـ `Alt` لبضعة أجزاء من الثانية، مما كان يحول محاكاة `Ctrl + C` إلى `Ctrl + Alt + C` ويفشل النسخ. تم وضع حلقة فحص عبر `user32.GetAsyncKeyState` تفرغ الأزرار الفيزيائية وتنتظر تحريرها قبل إرسال أمر النسخ.
+  - **قناة إيقاظ النافذة المباشرة (Win32 Named Event Inter-Process Wakeup):** استبدال رسائل الـ Broadcast بإشارة حدث مسمى `Local\Shalbny_SingleInstance_Wakeup_Event` تفتح وتستحضر نافذة الإعدادات فوراً عند محاولة تشغيل التطبيق مجدداً.
+  - **إصلاح خطأ `ModuleNotFoundError: No module named 'urllib'`:** إعادة تضمين مكتبات الشبكة في مواصفات التجميع `Shalbny.spec` و `Shalbny_Setup.spec`.
+  - **حزم تنفيذية محدثة بنسبة 100%:** بناء `dist/Shalbny.exe` (14.2 MB) و `dist/Shalbny_Setup.exe` (28.4 MB) وتثبيتها في `AppData\Local\Programs\Shalbny\Shalbny.exe`.
+  - **اجتياز كافة الاختبارات الآلية (56/56 Tests Passed):** إضافة اختبارات تغطي تسجيل الكيبورد العربي وقناة الإيقاظ بالكامل.
+  - **التشغيل والفحص الحي الحقيقي:** تشغيل البرنامج في جلسة المستخدم التفاعلية والتحقق من حجز واستماع `Alt + S` بنسبة 100% (Win32 Error 1409).
+  - **توفير اختصارات سطح المكتب وقائمة ابدأ:** إنشاء اختصار مباشر `Shalbny.lnk` على سطح المكتب للمستخدم وداخل قائمة ابدأ مع الأيقونة الرسمية لتسهيل الوصول والتشغيل الفوري.
+- [x] **ترقية الأيقونة الخارجية والهوية البصرية وتصميم الواجهة الشامل (v1.2.0 Overhaul):**
+  - **معرّف ويندوز الصريح للمهام (`SetCurrentProcessExplicitAppUserModelID`):** تسجيل المعرّف `ben10943.Shalbny.App.1.2.0` مما يمنح التطبيق هوية مستقلة ومثبتة في شريط المهام وقائمة `Alt+Tab` بدون أي أيقونات افتراضية.
+  - **حزمة أيقونات ويندوز احترافية متعددة المقاسات (10 مقاسات من 16px إلى 256px):** إعادة إنتاج [assets/icon.ico](file:///c:/Users/khale/OneDrive/Desktop/shalbny/assets/icon.ico) بدقة فائقة وقناة ألفا نقية ليظهر الشعار كريستالياً على سطح المكتب وفي المستكشف.
+  - **تصميم أزرار لوحة المفاتيح الميكانيكية الفخمة (3D Mechanical Keycaps):** عرض الاختصار كمفاتيح ميكانيكية فيزيائية بارزة وثلاثية الأبعاد `[ ALT ] + [ S ]` مع حواف نيون وتفاعل حي عند التسجيل.
+  - **حاوية الشعار الزرقاء الفاخرة (Executive Squircle Brand Badge):** إطار هالة زرقاء كهربائية منحنية ناعمة تحتضن شعار شقلبني في الترويسة.
+  - **توسيط النافذة التلقائي (Screen Auto-Centering):** حساب أبعاد الشاشة ديناميكياً لفتح النافذة بدقة متناهية في منتصف شاشة المستخدم.
+  - **ترقية الإصدار إلى `v1.2.0`:** تحديث الإصدار في [src/version.py](file:///c:/Users/khale/OneDrive/Desktop/shalbny/src/version.py) وكافة ملفات التوطين والتوثيق واجتياز 56/56 اختباراً.
+  - **بناء ونشر الحزم التنفيذية:** إنتاج وتحديث `dist/Shalbny.exe` و `dist/Shalbny_Setup.exe` وتحديث النسخة المثبتة على جهاز المستخدم.
+
+---
+
+## 🎯 الحالة الراهنة للبرنامج (Current Status):
+- **الإصدار الحالي:** `v1.2.0 Stable` (Windows 10 / 11 Native).
+- **حالة العملية:** البرنامج يعمل حالياً في الخلفية بنجاح وبشكل مستقر (PID نشط في مسار التثبيت الرسمي `AppData\Local\Programs\Shalbny\Shalbny.exe`).
+- **أيقونة شريط المهام وسطح المكتب:** هوية ويندوز متصلة مع أيقونة كريستالية فائقة الدقة.
+- **حالة الاختصار:** اختصار `Alt + S` نشط، محجوز ومستمع على مستوى نظام ويندوز بنسبة 100% (تم الفحص وتأكيد كود الحجز Win32: 1409).
+- **الاختبارات:** 56/56 اختباراً ناجحاً بنسبة 100%.
+- **الحزم التنفيذية:** جاهزة ومحدثة (`dist/Shalbny.exe` بحجم 14.3 MB و `dist/Shalbny_Setup.exe` بحجم 28.4 MB).
 
 

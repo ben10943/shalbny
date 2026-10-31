@@ -7,6 +7,7 @@ and Developer/About section.
 import os
 import sys
 import math
+import threading
 import keyboard
 import webbrowser
 import pyperclip
@@ -19,6 +20,7 @@ from ..config import ConfigManager
 from ..converter.manager import ProfileManager
 from ..i18n import i18n
 from ..core.win_api import play_feedback_sound
+from ..core.updater import check_for_updates
 from .assets import create_app_icon
 
 
@@ -49,6 +51,11 @@ class SettingsWindow:
         self._pulse_angle = 0.0
         self._is_recording_key = False
         self._record_hook = None
+        self._is_engine_active = True
+
+        # Update checker state
+        self._pending_update_info = None
+        self._checking_updates = False
 
         # Asset paths
         if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
@@ -58,15 +65,9 @@ class SettingsWindow:
         self.logo_path = self.base_dir / "assets" / "logo.png"
         self.icon_path = self.base_dir / "assets" / "icon.ico"
 
-    def show(self, target_tab: Optional[str] = None) -> None:
-        """Display the settings window. Brings to front if already active."""
+    def initialize(self) -> None:
+        """Initializes the window widgets on the main thread and hides until requested."""
         if self.root is not None and self.root.winfo_exists():
-            self._restore_window()
-            if target_tab and self.tabs:
-                try:
-                    self.tabs.set(target_tab)
-                except Exception:
-                    pass
             return
 
         theme_mode = self.config.get("theme", "dark")
@@ -78,23 +79,53 @@ class SettingsWindow:
         self.root.geometry("580x750")
         self.root.resizable(False, False)
 
-        # Set taskbar icon if available
+        # Center window dynamically on screen
+        try:
+            self.root.update_idletasks()
+            sw = self.root.winfo_screenwidth()
+            sh = self.root.winfo_screenheight()
+            x = max(0, (sw - 580) // 2)
+            y = max(0, (sh - 750) // 2)
+            self.root.geometry(f"580x750+{x}+{y}")
+        except Exception:
+            pass
+
+        # Set titlebar and taskbar icons (both iconbitmap for Win32 & iconphoto for Taskbar / Alt+Tab)
         if self.icon_path.exists():
             try:
                 self.root.iconbitmap(str(self.icon_path))
             except Exception:
                 pass
+        try:
+            from PIL import ImageTk
+            if self.logo_path.exists():
+                self._photo_icon = ImageTk.PhotoImage(file=str(self.logo_path))
+                self.root.iconphoto(True, self._photo_icon)
+        except Exception:
+            pass
 
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
         self._build_ui()
+        self._start_breathing_animation()
+        self.root.withdraw()
+
+    def show(self, target_tab: Optional[str] = None) -> None:
+        """Display the settings window. Brings to front if already active."""
+        if self.root is None or not self.root.winfo_exists():
+            self.initialize()
+
+        self._restore_window()
         if target_tab and self.tabs:
             try:
                 self.tabs.set(target_tab)
             except Exception:
                 pass
-        self._start_breathing_animation()
-        self.root.mainloop()
+
+    def mainloop(self) -> None:
+        """Runs the native GUI mainloop on the main thread."""
+        if self.root and self.root.winfo_exists():
+            self.root.mainloop()
 
     def _restore_window(self) -> None:
         """Thread-safe window restore and focus."""
@@ -102,6 +133,8 @@ class SettingsWindow:
             try:
                 self.root.deiconify()
                 self.root.lift()
+                self.root.attributes("-topmost", True)
+                self.root.attributes("-topmost", False)
                 self.root.focus_force()
             except Exception:
                 pass
@@ -118,15 +151,24 @@ class SettingsWindow:
         header_frame = ctk.CTkFrame(self.root, corner_radius=0, fg_color="transparent")
         header_frame.pack(fill="x", padx=20, pady=(15, 10))
 
-        # Brand / Logo Image (Official high-res icon)
+        # Brand / Logo Image inside sleek executive squircle container
         try:
+            logo_container = ctk.CTkFrame(
+                header_frame,
+                corner_radius=14,
+                fg_color=("#EFF6FF", "#0F2644"),
+                border_width=1.5,
+                border_color=("#93C5FD", "#0284C7")
+            )
+            logo_container.pack(side="left", padx=(0, 14))
+
             if self.logo_path.exists():
                 pil_logo = Image.open(self.logo_path)
             else:
-                pil_logo = create_app_icon(size=52)
-            logo_ctk = ctk.CTkImage(light_image=pil_logo, dark_image=pil_logo, size=(52, 52))
-            logo_label = ctk.CTkLabel(header_frame, image=logo_ctk, text="")
-            logo_label.pack(side="left", padx=(0, 14))
+                pil_logo = create_app_icon(size=48)
+            logo_ctk = ctk.CTkImage(light_image=pil_logo, dark_image=pil_logo, size=(48, 48))
+            logo_label = ctk.CTkLabel(logo_container, image=logo_ctk, text="")
+            logo_label.pack(padx=3, pady=3)
         except Exception:
             pass
 
@@ -449,13 +491,18 @@ class SettingsWindow:
         ).pack(pady=(14, 6))
 
         current_hk = self.config.get("hotkey", "alt+s").upper()
+        # 3D Mechanical Keycaps Container
+        self.keycaps_box = ctk.CTkFrame(badge_card, fg_color="transparent")
+        self.keycaps_box.pack(pady=(0, 14))
+
         self.hotkey_badge = ctk.CTkLabel(
-            badge_card,
-            text=f"⌨️ [ {current_hk} ]",
-            font=ctk.CTkFont(family="Consolas", size=24, weight="bold"),
-            text_color="#38BDF8"
+            self.keycaps_box,
+            text="",
+            font=ctk.CTkFont(family="Consolas", size=1),
+            height=1
         )
-        self.hotkey_badge.pack(pady=(0, 14))
+
+        self._render_keycaps(current_hk)
 
         # Record Custom Key Button
         self.record_btn = ctk.CTkButton(
@@ -606,6 +653,47 @@ class SettingsWindow:
             hover_color=("#CBD5E1", "#475569"),
             text_color=("#0F172A", "#F8FAFC")
         ).pack(fill="x", padx=15, pady=(8, 14))
+
+        # 2.5 Rescue History Card (last converted snippets)
+        history_card = ctk.CTkFrame(
+            scroll,
+            corner_radius=12,
+            border_width=1,
+            border_color=("#E2E8F0", "#334155"),
+            fg_color=("#F8FAFC", "#1E293B")
+        )
+        history_card.pack(fill="x", pady=6, padx=4)
+
+        history_header = ctk.CTkFrame(history_card, fg_color="transparent")
+        history_header.pack(fill="x", padx=15, pady=(14, 4))
+        ctk.CTkLabel(
+            history_header,
+            text=i18n.t("history_title"),
+            font=ctk.CTkFont(family="Segoe UI", size=14, weight="bold"),
+            text_color="#8B5CF6"
+        ).pack(side="left")
+
+        self.history_display_lbl = ctk.CTkLabel(
+            history_card,
+            text=self._format_history_text(),
+            font=ctk.CTkFont(family="Segoe UI", size=12),
+            anchor="nw",
+            justify="left",
+            wraplength=480
+        )
+        self.history_display_lbl.pack(anchor="w", fill="x", padx=15, pady=(2, 4))
+
+        ctk.CTkButton(
+            history_card,
+            text=i18n.t("history_clear_btn"),
+            command=self._on_clear_history,
+            font=ctk.CTkFont(family="Segoe UI", size=12),
+            height=30,
+            corner_radius=8,
+            fg_color=("#E2E8F0", "#334155"),
+            hover_color=("#CBD5E1", "#475569"),
+            text_color=("#0F172A", "#F8FAFC")
+        ).pack(fill="x", padx=15, pady=(4, 12))
 
         # 3. Factory Reset & Settings Recovery Card
         reset_card = ctk.CTkFrame(
@@ -905,6 +993,10 @@ class SettingsWindow:
         )
         self.updates_lbl.pack(padx=15, pady=(2, 8))
 
+        # If a silent startup check already found an update, show it immediately
+        if self._pending_update_info:
+            self._display_update_result(self._pending_update_info)
+
     # -------------------------------------------------------------
     # Logic & Event Handlers
     # -------------------------------------------------------------
@@ -972,9 +1064,101 @@ class SettingsWindow:
         self._render_tabs()
 
     def _on_check_updates(self) -> None:
-        """Checks for software updates."""
-        if hasattr(self, "updates_lbl") and self.updates_lbl.winfo_exists():
+        """Checks for updates against the official GitHub Releases (threaded, non-blocking)."""
+        if not (hasattr(self, "updates_lbl") and self.updates_lbl.winfo_exists()):
+            return
+        if self._checking_updates:
+            return
+        self._checking_updates = True
+
+        if hasattr(self, "_download_btn") and self._download_btn and self._download_btn.winfo_exists():
+            try:
+                self._download_btn.destroy()
+            except Exception:
+                pass
+
+        self.updates_lbl.configure(text=i18n.t("checking_updates_msg"), text_color="#38BDF8")
+
+        def _worker() -> None:
+            result = check_for_updates()
+            self._checking_updates = False
+            try:
+                if self.root and self.root.winfo_exists():
+                    self.root.after(0, lambda: self._display_update_result(result))
+            except Exception:
+                pass
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _display_update_result(self, result: dict) -> None:
+        """Renders the update check result inside the Developer tab safely."""
+        if not (self.root and self.root.winfo_exists()):
+            return
+        if not (hasattr(self, "updates_lbl") and self.updates_lbl.winfo_exists()):
+            return
+
+        status = result.get("status")
+        if status == "update_available":
+            self.updates_lbl.configure(
+                text=i18n.t("update_available_msg", version=result.get("latest_version", "?")),
+                text_color="#F59E0B"
+            )
+            download_page = result.get("download_page")
+            if download_page:
+                if hasattr(self, "_download_btn") and self._download_btn and self._download_btn.winfo_exists():
+                    try:
+                        self._download_btn.destroy()
+                    except Exception:
+                        pass
+                self._download_btn = ctk.CTkButton(
+                    self.updates_lbl.master,
+                    text=i18n.t("download_update_btn"),
+                    command=lambda: webbrowser.open(download_page),
+                    font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold"),
+                    height=32,
+                    corner_radius=8,
+                    fg_color="#F59E0B",
+                    hover_color="#D97706",
+                    text_color="#1E293B"
+                )
+                self._download_btn.pack(padx=15, pady=(0, 8), before=self.updates_lbl)
+        elif status == "error":
+            self.updates_lbl.configure(text=i18n.t("update_error_msg"), text_color="#F87171")
+        else:
             self.updates_lbl.configure(text=i18n.t("up_to_date_msg"), text_color="#10B981")
+
+    def set_update_info(self, info: dict) -> None:
+        """
+        Public hook for the app coordinator: stores a pre-fetched update result
+        (e.g. from the silent startup check) and displays it if the window is open.
+        """
+        self._pending_update_info = info
+        try:
+            if self.root and self.root.winfo_exists():
+                self.root.after(0, lambda: self._display_update_result(info) if info.get("status") == "update_available" else None)
+        except Exception:
+            pass
+
+    # ----- Rescue History helpers -----
+
+    def _format_history_text(self) -> str:
+        """Builds the multiline history preview text (newest first, max 5 shown)."""
+        history = self.config.get_history()
+        if not history:
+            return i18n.t("history_empty")
+        lines = []
+        for entry in history[:5]:
+            t = str(entry.get("t", ""))[-8:]
+            original = str(entry.get("original", ""))[:40]
+            converted = str(entry.get("converted", ""))[:40]
+            lines.append(f"🕒 {t}  «{original}» ➜ «{converted}»")
+        return "\n".join(lines)
+
+    def _on_clear_history(self) -> None:
+        """Erases the rescue history and refreshes its display card."""
+        self.config.clear_history()
+        if hasattr(self, "history_display_lbl") and self.history_display_lbl.winfo_exists():
+            self.history_display_lbl.configure(text=self._format_history_text())
 
     def _toggle_theme(self) -> None:
         """Switch between Dark and Light appearances."""
@@ -984,16 +1168,37 @@ class SettingsWindow:
         ctk.set_appearance_mode(new_theme)
         self.theme_btn.configure(text=i18n.t("theme_light") if new_theme == "dark" else i18n.t("theme_dark"))
 
+    def update_engine_status(self, is_active: bool) -> None:
+        """Updates the status pill to reflect active/paused state."""
+        self._is_engine_active = is_active
+        if self.root and self.root.winfo_exists() and hasattr(self, "status_pill"):
+            try:
+                if not is_active:
+                    self.status_pill.configure(
+                        text=f"  ⏸️ {i18n.t('tray_tooltip_paused')}  ",
+                        text_color="#F59E0B"
+                    )
+                else:
+                    self.status_pill.configure(
+                        text=f"  {i18n.t('engine_running')}  ",
+                        text_color="#10B981"
+                    )
+            except Exception:
+                pass
+
     def _start_breathing_animation(self) -> None:
         """Perpetual breathing pulse effect on the active status indicator."""
         if self.root and self.root.winfo_exists():
-            self._pulse_angle += 0.12
-            # Oscillate brightness between 0.6 and 1.0
-            brightness = 0.6 + 0.4 * math.sin(self._pulse_angle)
-            if brightness > 0.8:
-                self.status_pill.configure(text=f"  {i18n.t('engine_running')}  ", text_color="#10B981")
+            if not getattr(self, "_is_engine_active", True):
+                self.status_pill.configure(text=f"  ⏸️ {i18n.t('tray_tooltip_paused')}  ", text_color="#F59E0B")
             else:
-                self.status_pill.configure(text=f"  {i18n.t('engine_running')}  ", text_color="#059669")
+                self._pulse_angle += 0.12
+                # Oscillate brightness between 0.6 and 1.0
+                brightness = 0.6 + 0.4 * math.sin(self._pulse_angle)
+                if brightness > 0.8:
+                    self.status_pill.configure(text=f"  {i18n.t('engine_running')}  ", text_color="#10B981")
+                else:
+                    self.status_pill.configure(text=f"  {i18n.t('engine_running')}  ", text_color="#059669")
 
             self.root.after(80, self._start_breathing_animation)
 
@@ -1003,6 +1208,85 @@ class SettingsWindow:
         else:
             self._start_key_recording()
 
+    def _render_keycaps(self, hotkey_str: str) -> None:
+        """Renders luxury 3D mechanical keyboard keycaps for each key in the hotkey."""
+        if not hasattr(self, "keycaps_box") or not self.keycaps_box or not self.keycaps_box.winfo_exists():
+            return
+
+        for child in self.keycaps_box.winfo_children():
+            child.destroy()
+
+        clean_hk = (hotkey_str or "").strip().upper()
+        if self._is_recording_key:
+            rec_badge = ctk.CTkFrame(
+                self.keycaps_box,
+                corner_radius=10,
+                fg_color=("#FEF2F2", "#450A0A"),
+                border_width=2,
+                border_color=("#EF4444", "#DC2626")
+            )
+            rec_badge.pack(padx=8, pady=4)
+            ctk.CTkLabel(
+                rec_badge,
+                text=f"  🔴 {i18n.t('listening_badge')}  ",
+                font=ctk.CTkFont(family="Segoe UI", size=15, weight="bold"),
+                text_color=("#DC2626", "#FCA5A5")
+            ).pack(padx=14, pady=8)
+            return
+
+        # Split into key parts (e.g. "ALT+S" -> ["ALT", "S"])
+        parts = [p.strip() for p in clean_hk.split("+") if p.strip()]
+        if not parts:
+            parts = ["ALT", "S"]
+
+        for idx, part in enumerate(parts):
+            if idx > 0:
+                plus_lbl = ctk.CTkLabel(
+                    self.keycaps_box,
+                    text="+",
+                    font=ctk.CTkFont(family="Segoe UI", size=18, weight="bold"),
+                    text_color=("#3B82F6", "#60A5FA")
+                )
+                plus_lbl.pack(side="left", padx=6)
+
+            # Stylized 3D Mechanical Keycap Frame
+            keycap_frame = ctk.CTkFrame(
+                self.keycaps_box,
+                corner_radius=8,
+                fg_color=("#DBEAFE", "#1E293B"),
+                border_width=2,
+                border_color=("#3B82F6", "#0284C7")
+            )
+            keycap_frame.pack(side="left", padx=4)
+
+            key_lbl = ctk.CTkLabel(
+                keycap_frame,
+                text=f"  {part}  ",
+                font=ctk.CTkFont(family="Consolas", size=20, weight="bold"),
+                text_color=("#1E40AF", "#38BDF8")
+            )
+            key_lbl.pack(padx=10, pady=5)
+
+    def _render_keycaps_conflict(self) -> None:
+        if not hasattr(self, "keycaps_box") or not self.keycaps_box or not self.keycaps_box.winfo_exists():
+            return
+        for child in self.keycaps_box.winfo_children():
+            child.destroy()
+        conf_badge = ctk.CTkFrame(
+            self.keycaps_box,
+            corner_radius=10,
+            fg_color=("#FEF2F2", "#450A0A"),
+            border_width=2,
+            border_color=("#EF4444", "#DC2626")
+        )
+        conf_badge.pack(padx=8, pady=4)
+        ctk.CTkLabel(
+            conf_badge,
+            text=f"  ⚠️ {i18n.t('conflict_badge')}  ",
+            font=ctk.CTkFont(family="Segoe UI", size=15, weight="bold"),
+            text_color=("#DC2626", "#FCA5A5")
+        ).pack(padx=14, pady=8)
+
     def _start_key_recording(self) -> None:
         self._is_recording_key = True
         self.record_btn.configure(
@@ -1010,17 +1294,21 @@ class SettingsWindow:
             fg_color="#DC2626",
             hover_color="#B91C1C"
         )
-        self.hotkey_badge.configure(text=i18n.t("listening_badge"), text_color="#EF4444")
+        self._render_keycaps("")
 
         # Global key listener for recording next hotkey
         def on_key_event(e):
             if not self._is_recording_key:
                 return
             if e.event_type == keyboard.KEY_DOWN:
-                key_name = e.name.lower()
+                from ..config import ARABIC_TO_LATIN_KEY_MAP, sanitize_hotkey_string
+                raw_name = e.name.lower()
                 # Ignore isolated modifier presses
-                if key_name in ('ctrl', 'alt', 'shift', 'windows'):
+                if raw_name in ('ctrl', 'alt', 'shift', 'windows'):
                     return
+
+                # Normalize Arabic letters to Latin equivalent
+                key_name = ARABIC_TO_LATIN_KEY_MAP.get(raw_name, raw_name)
 
                 # Build combination if modifiers are held
                 parts = []
@@ -1031,7 +1319,7 @@ class SettingsWindow:
                 if keyboard.is_pressed('shift'):
                     parts.append('shift')
                 parts.append(key_name)
-                hotkey_str = "+".join(parts)
+                hotkey_str = sanitize_hotkey_string("+".join(parts))
 
                 self.root.after(0, lambda: self._apply_hotkey(hotkey_str))
 
@@ -1051,7 +1339,7 @@ class SettingsWindow:
             hover_color="#1D4ED8"
         )
         current_hk = self.config.get("hotkey", "alt+s").upper()
-        self.hotkey_badge.configure(text=f"⌨️ [ {current_hk} ]", text_color="#38BDF8")
+        self._render_keycaps(current_hk)
 
     def _apply_hotkey(self, hotkey_str: str) -> None:
         if self._is_recording_key:
@@ -1060,12 +1348,9 @@ class SettingsWindow:
         success = self.on_hotkey_change(hotkey_str)
         if success:
             self.config.set("hotkey", hotkey_str)
-            self.hotkey_badge.configure(
-                text=f"⌨️ [ {hotkey_str.upper()} ]",
-                text_color="#10B981"
-            )
+            self._render_keycaps(hotkey_str)
         else:
-            self.hotkey_badge.configure(text=i18n.t("conflict_badge"), text_color="#EF4444")
+            self._render_keycaps_conflict()
 
     def _on_profile_selected(self, choice: str) -> None:
         for p in self.profile_manager.list_profiles():

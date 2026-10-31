@@ -2,6 +2,7 @@
 Windows Win32 API interop and native helpers for Shalbny.
 Handles keyboard layout switching, active window detection, and feedback sounds.
 """
+import time
 import ctypes
 import winsound
 from ctypes import wintypes
@@ -147,31 +148,38 @@ KEYEVENTF_KEYUP = 0x0002
 
 
 def release_physical_modifiers() -> None:
-    """Forces release of modifier keys (Ctrl, Alt, Shift) in Windows input queue."""
-    for vk in (VK_MENU, VK_CONTROL, VK_SHIFT):
-        user32.keybd_event(vk, 0, KEYEVENTF_KEYUP, 0)
+    """Forces release of modifier keys (Ctrl, Alt, Shift, Win) in Windows input queue."""
+    for vk in (VK_MENU, VK_CONTROL, VK_SHIFT, 0x5B, 0x5C):
+        scan = user32.MapVirtualKeyW(vk, 0)
+        user32.keybd_event(vk, scan, KEYEVENTF_KEYUP, 0)
 
 
 def send_native_ctrl_c() -> None:
-    """Sends native Win32 Ctrl+C to copy selected text with zero race conditions."""
+    """Sends native Win32 Ctrl+C to copy selected text with hardware scan codes and precise timing."""
     release_physical_modifiers()
-    # Press Ctrl down
-    user32.keybd_event(VK_CONTROL, 0, 0, 0)
-    # Press C down & up
-    user32.keybd_event(VK_C, 0, 0, 0)
-    user32.keybd_event(VK_C, 0, KEYEVENTF_KEYUP, 0)
-    # Release Ctrl
-    user32.keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0)
+    time.sleep(0.01)
+    scan_ctrl = user32.MapVirtualKeyW(VK_CONTROL, 0)
+    scan_c = user32.MapVirtualKeyW(VK_C, 0)
+    user32.keybd_event(VK_CONTROL, scan_ctrl, 0, 0)
+    time.sleep(0.015)
+    user32.keybd_event(VK_C, scan_c, 0, 0)
+    time.sleep(0.015)
+    user32.keybd_event(VK_C, scan_c, KEYEVENTF_KEYUP, 0)
+    time.sleep(0.015)
+    user32.keybd_event(VK_CONTROL, scan_ctrl, KEYEVENTF_KEYUP, 0)
 
 
 def send_native_ctrl_v() -> None:
-    """Sends native Win32 Ctrl+V to paste converted text cleanly."""
+    """Sends native Win32 Ctrl+V to paste converted text cleanly with hardware scan codes."""
     release_physical_modifiers()
-    # Press Ctrl down
-    user32.keybd_event(VK_CONTROL, 0, 0, 0)
-    # Press V down & up
-    user32.keybd_event(VK_V, 0, 0, 0)
-    user32.keybd_event(VK_V, 0, KEYEVENTF_KEYUP, 0)
-    # Release Ctrl
-    user32.keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0)
+    time.sleep(0.01)
+    scan_ctrl = user32.MapVirtualKeyW(VK_CONTROL, 0)
+    scan_v = user32.MapVirtualKeyW(VK_V, 0)
+    user32.keybd_event(VK_CONTROL, scan_ctrl, 0, 0)
+    time.sleep(0.015)
+    user32.keybd_event(VK_V, scan_v, 0, 0)
+    time.sleep(0.015)
+    user32.keybd_event(VK_V, scan_v, KEYEVENTF_KEYUP, 0)
+    time.sleep(0.015)
+    user32.keybd_event(VK_CONTROL, scan_ctrl, KEYEVENTF_KEYUP, 0)
 

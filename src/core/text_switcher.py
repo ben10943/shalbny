@@ -4,9 +4,12 @@ Handles capturing selected text via clipboard, converting it, and injecting it b
 """
 import time
 import threading
+import ctypes
 import keyboard
 import pyperclip
 from typing import Optional
+
+user32 = ctypes.windll.user32
 
 from ..converter.manager import ProfileManager
 from ..config import ConfigManager
@@ -48,21 +51,36 @@ class TextSwitcher:
         try:
             # 1. Back up current clipboard content
             old_clipboard: str = ""
-            try:
-                old_clipboard = pyperclip.paste()
-            except Exception:
-                old_clipboard = ""
+            for _ in range(3):
+                try:
+                    old_clipboard = pyperclip.paste()
+                    break
+                except Exception:
+                    time.sleep(0.01)
 
-            # 2. Release physical modifier keys and pause for OS event queue
+            # 2. Wait up to 150ms for user to release physical modifier keys (Alt, Ctrl, Shift, Win)
+            # This completely prevents sending Ctrl+Alt+C if the user is still physically touching Alt
+            for _ in range(15):
+                if not (user32.GetAsyncKeyState(0x12) & 0x8000 or
+                        user32.GetAsyncKeyState(0x11) & 0x8000 or
+                        user32.GetAsyncKeyState(0x10) & 0x8000 or
+                        user32.GetAsyncKeyState(0x5B) & 0x8000 or
+                        user32.GetAsyncKeyState(0x5C) & 0x8000):
+                    break
+                release_physical_modifiers()
+                time.sleep(0.01)
+
             release_physical_modifiers()
-            time.sleep(0.04)
+            time.sleep(0.02)
 
             # 3. Empty clipboard to accurately detect new copy
-            try:
-                pyperclip.copy("")
-            except Exception:
-                pass
-            time.sleep(0.03)
+            for _ in range(3):
+                try:
+                    pyperclip.copy("")
+                    break
+                except Exception:
+                    time.sleep(0.01)
+            time.sleep(0.02)
 
             # 4. Simulate native Ctrl+C to copy current selection
             send_native_ctrl_c()
@@ -101,7 +119,16 @@ class TextSwitcher:
                 return
 
             # 7. Place converted text on clipboard and paste natively
-            pyperclip.copy(converted_text)
+            copied_ok = False
+            for _ in range(5):
+                try:
+                    pyperclip.copy(converted_text)
+                    copied_ok = True
+                    break
+                except Exception:
+                    time.sleep(0.015)
+            if not copied_ok:
+                return
             time.sleep(0.04)
             send_native_ctrl_v()
 
@@ -112,9 +139,13 @@ class TextSwitcher:
             if self.config.get("switch_system_language", True):
                 switch_keyboard_layout()
 
-            # Record conversion statistics
+            # Record conversion statistics and rescue history
             try:
                 self.config.increment_conversion_count()
+            except Exception:
+                pass
+            try:
+                self.config.add_history(selected_text, converted_text)
             except Exception:
                 pass
 

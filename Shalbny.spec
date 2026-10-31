@@ -19,6 +19,18 @@ hiddenimports = [
     'keyboard',
     'pyperclip',
     'src.i18n',
+    'src.version',
+    'src.core.updater',
+    'urllib',
+    'urllib.request',
+    'urllib.error',
+    'urllib.parse',
+    'urllib.response',
+    'http',
+    'http.client',
+    'email',
+    'email.message',
+    'ssl',
 ]
 datas += collect_data_files('customtkinter')
 hiddenimports += collect_submodules('customtkinter')
@@ -28,7 +40,7 @@ EXCLUDED_MODULES = [
     'pytest', '_pytest', 'unittest', 'doctest', 'pdb', 'pydoc', 'pydoc_data', '_pyrepl',
     'yaml', 'charset_normalizer', 'olefile',
     'asyncio', 'concurrent', 'multiprocessing', 'xmlrpc',
-    'email', 'http', 'html', 'ssl', '_ssl', 'ftplib', 'netrc', 'mimetypes', 'urllib',
+    'html', 'ftplib', 'netrc', 'mimetypes',
     'sqlite3', '_sqlite3', 'decimal', '_decimal',
     'PIL.AvifImagePlugin', 'PIL._avif',
     'PIL.WebPImagePlugin', 'PIL._webp',
@@ -66,10 +78,6 @@ EXCLUDED_BIN_SUBSTRINGS = (
     '_avif',
     '_webp',
     '_imagingcms',
-    'libcrypto',
-    'libssl',
-    '_ssl.pyd',
-    '_hashlib.pyd',
     '_decimal.pyd',
     '_sqlite3.pyd',
     'sqlite3.dll',
@@ -135,4 +143,3 @@ exe = EXE(
     entitlements_file=None,
     icon=[str(BASE_DIR / 'assets' / 'icon.ico')],
 )
-

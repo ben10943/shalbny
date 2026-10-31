@@ -9,9 +9,16 @@ import sys
 import time
 import shutil
 import subprocess
+import ctypes
 from pathlib import Path
 import customtkinter as ctk
 from PIL import Image
+
+# Ensure Windows groups taskbar icon properly
+try:
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("ben10943.Shalbny.Installer.1.2.0")
+except Exception:
+    pass
 
 # Ensure root directory is in sys.path
 BASE_PROJECT_DIR = Path(__file__).resolve().parent.parent
@@ -356,10 +363,10 @@ class SetupWizard:
                     f.write(f'CreateObject("Wscript.Shell").Run "pythonw ""{main_py_path}""", 0, False\n')
                 target_exec = str(runner_vbs)
 
-            # Ensure assets folder exists for icons
+            # Ensure assets folder exists and is always updated with latest icons
             dest_assets = target_path / "assets"
-            if not dest_assets.exists() and (SOURCE_DIR / "assets").exists():
-                shutil.copytree(SOURCE_DIR / "assets", dest_assets)
+            if (SOURCE_DIR / "assets").exists():
+                shutil.copytree(SOURCE_DIR / "assets", dest_assets, dirs_exist_ok=True)
 
             self.prog_bar.set(0.6)
             self.install_status.configure(text="جاري إنشاء الاختصارات...")
@@ -370,9 +377,8 @@ class SetupWizard:
             # Desktop Shortcut (Resolves OneDrive & User Shell Folders)
             if self.create_desktop_var.get():
                 desktop_folder = get_user_folder("Desktop", Path.home() / "Desktop")
-                desktop_lnk = desktop_folder / "شقلبني - Shalbny.lnk"
                 self._create_windows_shortcut(
-                    lnk_path=desktop_lnk,
+                    lnk_path=desktop_folder / "Shalbny.lnk",
                     target_path=target_exec,
                     icon_path=str(icon_file),
                     desc="شقلبني - مبدل لغة الكتابة الذكي"
@@ -383,9 +389,8 @@ class SetupWizard:
                 programs_folder = get_user_folder("Programs", Path.home() / "AppData" / "Roaming" / "Microsoft" / "Windows" / "Start Menu" / "Programs")
                 start_dir = programs_folder / "Shalbny"
                 start_dir.mkdir(parents=True, exist_ok=True)
-                start_lnk = start_dir / "شقلبني - Shalbny.lnk"
                 self._create_windows_shortcut(
-                    lnk_path=start_lnk,
+                    lnk_path=start_dir / "Shalbny.lnk",
                     target_path=target_exec,
                     icon_path=str(icon_file),
                     desc="شقلبني - مبدل لغة الكتابة الذكي"
