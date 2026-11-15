@@ -155,15 +155,21 @@ class TestHotkeyServiceLifecycle:
 
     def test_service_named_event_wakeup(self):
         import ctypes
+        import os
         from src.core.hotkey_service import WAKEUP_EVENT_NAME
         kernel32 = ctypes.windll.kernel32
         wake_calls = []
+        test_event_name = f"{WAKEUP_EVENT_NAME}_test_{os.getpid()}"
 
-        service = HotkeyService(lambda: None, on_show_settings=lambda: wake_calls.append(True))
+        service = HotkeyService(
+            lambda: None,
+            on_show_settings=lambda: wake_calls.append(True),
+            wakeup_event_name=test_event_name
+        )
         try:
             time.sleep(0.1)
             # Open the named event from another context and signal it
-            h_event = kernel32.OpenEventW(0x0002, False, WAKEUP_EVENT_NAME)
+            h_event = kernel32.OpenEventW(0x0002, False, test_event_name)
             assert h_event != 0
             kernel32.SetEvent(h_event)
             kernel32.CloseHandle(h_event)

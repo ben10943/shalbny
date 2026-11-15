@@ -182,7 +182,8 @@ class HotkeyService:
     def __init__(
         self,
         callback: Callable[[], None],
-        on_show_settings: Optional[Callable[[], None]] = None
+        on_show_settings: Optional[Callable[[], None]] = None,
+        wakeup_event_name: Optional[str] = None
     ):
         self.callback = callback
         self.on_show_settings = on_show_settings
@@ -215,7 +216,8 @@ class HotkeyService:
         self._watchdog_thread.start()
 
         # Single-instance inter-process wakeup listener via Win32 Named Event
-        self._wakeup_event_handle = kernel32.CreateEventW(None, False, False, WAKEUP_EVENT_NAME)
+        self._wakeup_event_name = wakeup_event_name or WAKEUP_EVENT_NAME
+        self._wakeup_event_handle = kernel32.CreateEventW(None, False, False, self._wakeup_event_name)
         self._stop_wakeup_listener = threading.Event()
         self._wakeup_listener_thread = threading.Thread(
             target=self._wakeup_listener_loop,

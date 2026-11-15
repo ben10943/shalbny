@@ -8,7 +8,7 @@ import json
 import time
 import winreg
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 
 CONFIG_DIR = Path.home() / ".shalbny"
 CONFIG_FILE = CONFIG_DIR / "config.json"
